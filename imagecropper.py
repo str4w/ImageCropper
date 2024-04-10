@@ -7,8 +7,23 @@ from pathlib import Path
 from tkinter import Tk
 
 BRIGHTNESS_INCREMENT = 10
-CONTRAST_INCREMENT = 1
+CONTRAST_INCREMENT = 0.1
 ROTATION_INCREMENT = 0.5
+
+
+def equalizeHist(image):
+    image = image.copy()
+    for c in range(3):
+        image[:, :, c] = cv2.equalizeHist(image[:, :, c])
+    return image
+    # # convert from RGB color-space to YCrCb
+    # ycrcb_img = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+
+    # # equalize the histogram of the Y channel
+    # ycrcb_img[:, :, 0] = cv2.equalizeHist(ycrcb_img[:, :, 0])
+
+    # # convert back to RGB color-space from YCrCb
+    # return cv2.cvtColor(ycrcb_img, cv2.COLOR_YCrCb2BGR)
 
 
 class ImageCropper:
@@ -18,12 +33,14 @@ class ImageCropper:
         self.reset_geometry()
         self.get_screen_info()
         self.speed_factor = 1
+        self.dirty = True
         self.help_text = "\n".join(
             [
                 "? - show/hide this help",
                 "s - save and continue with this image",
                 "q - save and move to next image",
                 "x - skip this image",
+                "z - skip this image and all remaining images",
                 "+/- - increase/decrease speed of changes",
                 "g/b - increase/decrease brightness",
                 "d/c - increase/decrease contrast",
@@ -40,7 +57,8 @@ class ImageCropper:
                 "3/4 - decrease/increase green",
                 "5/6 - decrease/increase blue",
                 "n - invert",
-                "= - toggle grayscale",
+                "~ - toggle grayscale",
+                "= - toggle equalize histogram",
             ]
         )
         self.show_help = False
@@ -50,12 +68,15 @@ class ImageCropper:
         self.contrast = 1
         self.invert = False
         self.grayscale = False
+        self.equalize_histogram = False
         self.color_factors = np.array((1, 1, 1))
+        self.dirty = True
 
     def reset_geometry(self):
         self.rotation = 0
         self.rot90 = 0
         self.crop_window = (0, 0, self.image.shape[1], self.image.shape[0])
+        self.dirty = True
 
     def get_screen_info(self):
         window = Tk()
@@ -120,23 +141,35 @@ class ImageCropper:
 
     def set_brightness(self, brightness):
         self.brightness = brightness
+        self.dirty = True
 
     def set_contrast(self, contrast):
         self.contrast = contrast
+        self.dirty = True
 
     def set_rotation(self, rotation):
         self.rotation = rotation
+        self.dirty = True
 
     def set_color_factors(self, color_factors):
         self.color_factors = color_factors
+        self.dirty = True
 
     def toggle_invert(self):
         self.invert = not self.invert
+        self.dirty = True
 
     def toggle_grayscale(self):
         self.grayscale = not self.grayscale
+        self.dirty = True
+
+    def toggle_equalize_histogram(self):
+        self.equalize_histogram = not self.equalize_histogram
+        self.dirty = True
 
     def generate_image(self):
+        if not self.dirty:
+            return self.adjusted_image
         image = self.image.copy()
 
         # Rotate the image
@@ -164,6 +197,16 @@ class ImageCropper:
         if self.grayscale:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        if self.equalize_histogram:
+            if self.crop_window is None:
+                image = equalizeHist(image)
+            else:
+                x_low, y_low, x_high, y_high = self.crop_window
+                image[y_low:y_high, x_low:x_high] = equalizeHist(
+                    image[y_low:y_high, x_low:x_high]
+                )
+        self.adjusted_image = image
+        self.dirty = False
         return image
 
     def generate_save_image(self):
@@ -180,7 +223,7 @@ class ImageCropper:
         # Determine the scale ratio to fit the image on the screen
         scale_ratio = min(
             (self.screen_width - 10) / image.shape[1],
-            (self.screen_height - 20) / image.shape[0],
+            (self.screen_height - 100) / image.shape[0],
         )
 
         # Resize the image if necessary
@@ -306,6 +349,8 @@ class ImageCropper:
                     self.color_factors + np.array((0.05 * self.speed_factor, 0, 0))
                 )
             case "=":
+                self.toggle_equalize_histogram()
+            case "~":
                 self.toggle_grayscale()
             case _:
                 print(f"Unknown key press: {chr(key)}")
@@ -352,27 +397,40 @@ def process_image(input_image, initial_key_presses, output_image):
                     break
             case "x":
                 break
+            case "z":
+                return False
             case _:
                 imagecropper.process_key_press(key)
                 if not in_initial_key_presses:
                     cv2.imshow("Image", imagecropper.generate_interactive_image())
+    return True
 
 
 def main(input_path, initial_key_presses, output_path):
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    if input_path.resolve() == output_path.resolve():
+        print("Input and output paths must be different.")
+        return
     # Check if input path is an image
-    if Path(input_path).is_file():
+    if input_path.is_file():
         # Check if output path is an image or a directory
-        if Path(output_path).is_file():
+        if cv2.haveImageWriter(str(output_path)):
             # Call process_image with the input and output paths
             process_image(input_path, initial_key_presses, output_path)
+        else:
+            process_image(
+                input_path, initial_key_presses, output_path / input_path.name
+            )
     # Check if input path is a directory
-    elif Path(input_path).is_dir():
+    elif input_path.is_dir():
         # Verify that output path is a directory or does not exist
-        if not Path(output_path).is_dir() and Path(output_path).exists():
+        if not output_path.is_dir() and output_path.exists():
             print("Output path must be a directory or a non-existing path.")
             return
         # Walk the directory and all subdirectories
-        for root, dirs, files in os.walk(input_path):
+        flag = True
+        for root, dirs, files in os.walk(str(input_path)):
             for file in files:
                 input_image_path = os.path.join(root, file)
                 # Check if the file is an image
@@ -380,13 +438,19 @@ def main(input_path, initial_key_presses, output_path):
                     continue
                 # Generate the equivalent output path
                 output_image_path = os.path.join(
-                    output_path, os.path.relpath(input_image_path, input_path)
+                    output_path, os.path.relpath(input_image_path, str(input_path))
                 )
                 # Skip if the output file already exists
                 if Path(output_image_path).exists():
                     continue
                 # Call process_image with the input and output paths
-                process_image(input_image_path, initial_key_presses, output_image_path)
+                flag = process_image(
+                    input_image_path, initial_key_presses, output_image_path
+                )
+                if not flag:
+                    break
+            if not flag:
+                break
     else:
         print("Input path must be an image or a directory.")
 
