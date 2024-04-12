@@ -93,6 +93,7 @@ class ImageCropper:
             self.image.shape[1] - x_low,
             y_high,
         )
+        self.dirty = True
 
     def flip_ud(self):
         self.image = self.image[::-1, :, :]
@@ -103,6 +104,7 @@ class ImageCropper:
             x_high,
             self.image.shape[0] - y_low,
         )
+        self.dirty = True
 
     def rot90left(self):
         x_low, y_low, x_high, y_high = self.crop_window
@@ -113,6 +115,8 @@ class ImageCropper:
             self.image.shape[1] - x_low,
         )
         self.image = cv2.rotate(self.image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        self.dirty = True
+
 
     def rot90right(self):
         x_low, y_low, x_high, y_high = self.crop_window
@@ -123,6 +127,7 @@ class ImageCropper:
             x_high,
         )
         self.image = cv2.rotate(self.image, cv2.ROTATE_90_CLOCKWISE)
+        self.dirty = True
 
     def increment_crop_window(self, side, increment):
         x_low, y_low, x_high, y_high = self.crop_window
