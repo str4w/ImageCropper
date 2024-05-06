@@ -40,7 +40,7 @@ class ImageCropper:
                 "s - save and continue with this image",
                 "q - save and move to next image",
                 "x - skip this image",
-                "z - skip this image and all remaining images",
+                "z - exit now without saving",
                 "+/- - increase/decrease speed of changes",
                 "g/b - increase/decrease brightness",
                 "d/c - increase/decrease contrast",
@@ -219,7 +219,7 @@ class ImageCropper:
         # Apply crop window
         if self.crop_window is not None:
             x_low, y_low, x_high, y_high = self.crop_window
-            image = self.image[y_low:y_high, x_low:x_high]
+            image = image[y_low:y_high, x_low:x_high]
 
         return image
 
@@ -256,7 +256,7 @@ class ImageCropper:
                     (10, y),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
-                    (255, 255, 255),
+                    (255, 0, 255),
                     1,
                     cv2.LINE_AA,
                 )
