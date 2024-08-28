@@ -26,12 +26,13 @@ def equalizeHist(image):
     # # convert back to RGB color-space from YCrCb
     # return cv2.cvtColor(ycrcb_img, cv2.COLOR_YCrCb2BGR)
 
+
 def simple_balance(image):
     image = image.copy().astype(np.float32)
     for c in range(3):
         low = np.percentile(image[:, :, c], SIMPLE_BALANCE_PERCENTILE)
         high = np.percentile(image[:, :, c], 100 - SIMPLE_BALANCE_PERCENTILE)
-        image[:, :, c] = (image[:, :, c] - low)*255/(high-low)
+        image[:, :, c] = (image[:, :, c] - low) * 255 / (high - low)
     image = np.clip(image, 0, 255).astype(np.uint8)
     return image
 
@@ -128,7 +129,6 @@ class ImageCropper:
         )
         self.image = cv2.rotate(self.image, cv2.ROTATE_90_COUNTERCLOCKWISE)
         self.dirty = True
-
 
     def rot90right(self):
         x_low, y_low, x_high, y_high = self.crop_window
@@ -380,14 +380,16 @@ class ImageCropper:
             case "=":
                 self.toggle_equalize_histogram()
             case "\\":
-                self.toggle_simple_balance()    
+                self.toggle_simple_balance()
             case "~":
                 self.toggle_grayscale()
             case _:
                 print(f"Unknown key press: {chr(key)}")
 
+
 # Function to show image in a window with a dynamic title
 WINDOW_NAME = "ImageWindow"  # Use a constant window name
+
 
 def show_image_with_dynamic_title(title, image, title_dirty, image_dirty):
     try:
@@ -404,8 +406,9 @@ def show_image_with_dynamic_title(title, image, title_dirty, image_dirty):
     if image_dirty:
         cv2.imshow(WINDOW_NAME, image)
 
+
 def process_image(input_image, initial_key_presses, output_image, title):
-    #print(title)
+    # print(title)
     output_image = Path(output_image)
     # Load the image
     image = cv2.imread(input_image)
@@ -417,7 +420,7 @@ def process_image(input_image, initial_key_presses, output_image, title):
     in_initial_key_presses = True
     title_dirty = True
     image_dirty = True
-    image=None
+    image = None
     while True:
         if initial_key_presses and position_in_key_presses < len(initial_key_presses):
             key = ord(initial_key_presses[position_in_key_presses])
@@ -456,7 +459,9 @@ def process_image(input_image, initial_key_presses, output_image, title):
                     image_dirty = True
                     image = imagecropper.generate_interactive_image()
                 if not in_initial_key_presses:
-                    show_image_with_dynamic_title(title, image, title_dirty, image_dirty)
+                    show_image_with_dynamic_title(
+                        title, image, title_dirty, image_dirty
+                    )
                     title_dirty = False
                     image_dirty = False
     return True
@@ -473,12 +478,19 @@ def main(input_path, initial_key_presses, output_path):
         # Check if output path is an image or a directory
         if cv2.haveImageWriter(str(output_path)):
             # Call process_image with the input and output paths
-            process_image(str(input_path), initial_key_presses, output_path, 
-                          f"Processing image 1/1: {input_path.name} -> {output_path.name}")
+            process_image(
+                str(input_path),
+                initial_key_presses,
+                output_path,
+                f"Processing image 1/1: {input_path.name} -> {output_path.name}",
+            )
         else:
             process_image(
-                str(input_path), initial_key_presses, output_path / input_path.name,
-                f"Processing image 1/1: {input_path.name}")
+                str(input_path),
+                initial_key_presses,
+                output_path / input_path.name,
+                f"Processing image 1/1: {input_path.name}",
+            )
     # Check if input path is a directory
     elif input_path.is_dir():
         # Verify that output path is a directory or does not exist
@@ -487,7 +499,7 @@ def main(input_path, initial_key_presses, output_path):
             return
         # Walk the directory and all subdirectories
         # build list of images
-        file_list=[]
+        file_list = []
         for root, dirs, files in os.walk(str(input_path)):
             for file in files:
                 input_image_path = os.path.join(root, file)
@@ -496,25 +508,39 @@ def main(input_path, initial_key_presses, output_path):
                     continue
                 done_status = False
                 # Generate the equivalent output path
-                relative_input_image_path = os.path.relpath(input_image_path, str(input_path))
-                output_image_path = os.path.join(
-                    output_path, relative_input_image_path
+                relative_input_image_path = os.path.relpath(
+                    input_image_path, str(input_path)
                 )
+                output_image_path = os.path.join(output_path, relative_input_image_path)
                 # Mark done if the output file already exists
                 if Path(output_image_path).exists():
                     done_status = True
                 sort_key = "A" if done_status else "Z" + str(relative_input_image_path)
-                file_list.append((input_image_path,relative_input_image_path,output_image_path,done_status, sort_key))
+                file_list.append(
+                    (
+                        input_image_path,
+                        relative_input_image_path,
+                        output_image_path,
+                        done_status,
+                        sort_key,
+                    )
+                )
         N = len(file_list)
-        for i, (input_image_path, relative_input_image_path, output_image_path, done_status, sort_key) in enumerate(sorted(file_list, key=lambda x:x[-1]), start=1):
+        for i, (
+            input_image_path,
+            relative_input_image_path,
+            output_image_path,
+            done_status,
+            sort_key,
+        ) in enumerate(sorted(file_list, key=lambda x: x[-1]), start=1):
             if done_status:
                 continue
             # Call process_image with the input and output paths
             flag = process_image(
-                input_image_path, 
-                initial_key_presses, 
+                input_image_path,
+                initial_key_presses,
                 output_image_path,
-                f"Processing image {i}/{N} ({100*i/N:.1f}%): {relative_input_image_path}"
+                f"Processing image {i}/{N} ({100*i/N:.1f}%): {relative_input_image_path}",
             )
             if not flag:
                 break
